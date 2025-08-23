@@ -4,15 +4,19 @@ import { useState, useEffect } from 'react'
 import { ethers } from 'ethers'
 
 export default function WalletConnect() {
-  const [account, setAccount] = (useState < string) | (null > null)
+  const [account, setAccount] = useState(null)
 
   async function connectWallet() {
     if (window.ethereum) {
-      const provider = new ethers.BrowserProvider(window.ethereum)
-      const accounts = await provider.send('eth_requestAccounts', [])
-      setAccount(accounts[0])
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum)
+        const accounts = await provider.send('eth_requestAccounts', [])
+        setAccount(accounts[0])
+      } catch (err) {
+        console.error('Wallet connection failed:', err)
+      }
     } else {
-      alert('MetaMask not found!')
+      alert('MetaMask not found! Please install it.')
     }
   }
 
@@ -27,7 +31,7 @@ export default function WalletConnect() {
   return (
     <button
       onClick={connectWallet}
-      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-md"
+      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-md transition duration-200"
     >
       {account
         ? `${account.slice(0, 6)}...${account.slice(-4)}`

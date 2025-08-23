@@ -45,10 +45,17 @@ export async function getBalance(address: string) {
 
 export async function getStakingInfo(address: string) {
   const provider = getProvider()
-  const contract = new ethers.Contract(STAKING_ADDRESS, UTMStaking.abi, provider)
-  const info = await contract.stakers(address)
+  const contract = new ethers.Contract(
+    STAKING_ADDRESS,
+    UTMStaking.abi,
+    provider
+  )
+
+  // mapping is `stakes`, not `stakers`
+  const info = await contract.stakes(address)
+
   return {
     staked: ethers.formatUnits(info.amount, 18),
-    rewards: ethers.formatUnits(info.rewards, 18),
+    rewards: ethers.formatUnits(info.rewardDebt, 18), // use rewardDebt, claimable is pendingRewards()
   }
 }
