@@ -21,11 +21,11 @@ export default function Deposit() {
       const approveTx = await token.approve(staking.target, value)
       await approveTx.wait()
 
-      // Deposit tokens
-      const tx = await staking.deposit(value)
+      // Stake tokens
+      const tx = await staking.stake(value)
       await tx.wait()
 
-      alert('Deposit successful!')
+      alert('Deposit (stake) successful!')
     } catch (err) {
       console.error(err)
       alert('Deposit failed')
