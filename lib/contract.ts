@@ -1,6 +1,6 @@
 import { ethers } from 'ethers'
-import UTM from '@/abi/UTM.json'
-import UTMStaking from '@/abi/UTMStaking.json'
+import UTM from '../abi/UTM.json'
+import UTMStaking from '../abi/UTMStaking.json'
 
 const TOKEN_ADDRESS = process.env.NEXT_PUBLIC_UTM_TOKEN as string
 const STAKING_ADDRESS = process.env.NEXT_PUBLIC_UTM_STAKING as string
@@ -17,35 +17,35 @@ async function getSigner() {
 
 export async function stakeTokens(amount: string) {
   const signer = await getSigner()
-  const contract = new ethers.Contract(STAKING_ADDRESS, UTMStaking, signer)
+  const contract = new ethers.Contract(STAKING_ADDRESS, UTMStaking.abi, signer)
   const tx = await contract.stake(ethers.parseUnits(amount, 18))
   await tx.wait()
 }
 
 export async function withdrawTokens(amount: string) {
   const signer = await getSigner()
-  const contract = new ethers.Contract(STAKING_ADDRESS, UTMStaking, signer)
+  const contract = new ethers.Contract(STAKING_ADDRESS, UTMStaking.abi, signer)
   const tx = await contract.withdraw(ethers.parseUnits(amount, 18))
   await tx.wait()
 }
 
 export async function claimRewards() {
   const signer = await getSigner()
-  const contract = new ethers.Contract(STAKING_ADDRESS, UTMStaking, signer)
+  const contract = new ethers.Contract(STAKING_ADDRESS, UTMStaking.abi, signer)
   const tx = await contract.claimRewards()
   await tx.wait()
 }
 
 export async function getBalance(address: string) {
   const provider = getProvider()
-  const contract = new ethers.Contract(TOKEN_ADDRESS, UTM, provider)
+  const contract = new ethers.Contract(TOKEN_ADDRESS, UTM.abi, provider)
   const balance = await contract.balanceOf(address)
   return ethers.formatUnits(balance, 18)
 }
 
 export async function getStakingInfo(address: string) {
   const provider = getProvider()
-  const contract = new ethers.Contract(STAKING_ADDRESS, UTMStaking, provider)
+  const contract = new ethers.Contract(STAKING_ADDRESS, UTMStaking.abi, provider)
   const info = await contract.stakers(address)
   return {
     staked: ethers.formatUnits(info.amount, 18),
