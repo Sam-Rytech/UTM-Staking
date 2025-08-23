@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useStaking } from '@/lib/hooks'
+import { useStaking } from '../lib/hooks'
 
 export default function StatsCard() {
   const { staked, rewards } = useStaking()

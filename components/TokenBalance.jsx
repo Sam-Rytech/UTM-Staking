@@ -1,6 +1,6 @@
 'use client'
 
-import { useBalance } from '@/lib/hooks'
+import { useBalance } from '../lib/hooks'
 
 export default function TokenBalance() {
   const balance = useBalance()

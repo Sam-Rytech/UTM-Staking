@@ -1,6 +1,6 @@
 'use client'
 
-import { claimRewards } from '@/lib/contract'
+import { claimRewards } from '../lib/contract'
 
 export default function ClaimRewards() {
   return (

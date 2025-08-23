@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { withdrawTokens } from '@/lib/contract'
+import { withdrawTokens } from '../lib/contract'
 
 export default function WithdrawForm() {
   const [amount, setAmount] = useState('')

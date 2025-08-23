@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { stakeTokens } from '@/lib/contract'
+import { stakeTokens } from '../lib/contract'
 
 export default function StakeForm() {
   const [amount, setAmount] = useState('')

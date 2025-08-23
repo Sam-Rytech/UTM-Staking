@@ -1,10 +1,10 @@
 'use client'
 
-import StatsCard from '@/components/StatsCard'
-import TokenBalance from '@/components/TokenBalance'
-import StakeForm from '@/components/StakeForm'
-import WithdrawForm from '@/components/WithdrawForm'
-import ClaimRewards from '@/components/ClaimRewards'
+import StatsCard from '../components/StatsCard'
+import TokenBalance from '../components/TokenBalance'
+import StakeForm from '../components/StakeForm'
+import WithdrawForm from '../components/WithdrawForm'
+import ClaimRewards from '../components/ClaimRewards'
 
 export default function HomePage() {
   return (
