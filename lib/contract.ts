@@ -1,3 +1,4 @@
+'use client'
 import { ethers } from 'ethers'
 import UTM from '../abi/UTM.json'
 import UTMStaking from '../abi/UTMStaking.json'
@@ -15,47 +16,58 @@ async function getSigner() {
   return await provider.getSigner()
 }
 
+// ✅ Stake tokens
 export async function stakeTokens(amount: string) {
   const signer = await getSigner()
-  const contract = new ethers.Contract(STAKING_ADDRESS, UTMStaking.abi, signer)
-  const tx = await contract.stake(ethers.parseUnits(amount, 18))
+  const token = new ethers.Contract(TOKEN_ADDRESS, UTM.abi, signer)
+  const staking = new ethers.Contract(STAKING_ADDRESS, UTMStaking.abi, signer)
+  const value = ethers.parseUnits(amount, 18)
+  const userAddr = await signer.getAddress()
+
+  // Check balance
+  const balance = await token.balanceOf(userAddr)
+  if (balance < value) throw new Error('Not enough UTM balance')
+
+  // Approve if needed
+  const allowance = await token.allowance(userAddr, STAKING_ADDRESS)
+  if (allowance < value) {
+    const approveTx = await token.approve(STAKING_ADDRESS, value)
+    await approveTx.wait()
+  }
+
+  // Stake
+  const tx = await staking.stake(value)
   await tx.wait()
 }
 
-export async function withdrawTokens(amount: string) {
-  const signer = await getSigner()
-  const contract = new ethers.Contract(STAKING_ADDRESS, UTMStaking.abi, signer)
-  const tx = await contract.withdraw(ethers.parseUnits(amount, 18))
-  await tx.wait()
-}
-
+// ✅ Claim rewards
 export async function claimRewards() {
   const signer = await getSigner()
-  const contract = new ethers.Contract(STAKING_ADDRESS, UTMStaking.abi, signer)
-  const tx = await contract.claimRewards()
+  const staking = new ethers.Contract(STAKING_ADDRESS, UTMStaking.abi, signer)
+  const tx = await staking.claim() // ✅ correct function
   await tx.wait()
 }
 
-export async function getBalance(address: string) {
-  const provider = getProvider()
-  const contract = new ethers.Contract(TOKEN_ADDRESS, UTM.abi, provider)
-  const balance = await contract.balanceOf(address)
-  return ethers.formatUnits(balance, 18)
+// ✅ Withdraw staked tokens
+export async function withdrawTokens(amount: string) {
+  const signer = await getSigner()
+  const staking = new ethers.Contract(STAKING_ADDRESS, UTMStaking.abi, signer)
+  const tx = await staking.withdraw(ethers.parseUnits(amount, 18))
+  await tx.wait()
 }
 
-export async function getStakingInfo(address: string) {
+// ✅ Get pending rewards
+export async function getPendingRewards(address: string) {
   const provider = getProvider()
-  const contract = new ethers.Contract(
-    STAKING_ADDRESS,
-    UTMStaking.abi,
-    provider
-  )
+  const staking = new ethers.Contract(STAKING_ADDRESS, UTMStaking.abi, provider)
+  const rewards = await staking.pendingRewards(address)
+  return ethers.formatUnits(rewards, 18)
+}
 
-  // mapping is `stakes`, not `stakers`
-  const info = await contract.stakes(address)
-
-  return {
-    staked: ethers.formatUnits(info.amount, 18),
-    rewards: ethers.formatUnits(info.rewardDebt, 18), // use rewardDebt, claimable is pendingRewards()
-  }
+// ✅ Get staked balance
+export async function getStakedBalance(address: string) {
+  const provider = getProvider()
+  const staking = new ethers.Contract(STAKING_ADDRESS, UTMStaking.abi, provider)
+  const balance = await staking.stakedBalance(address)
+  return ethers.formatUnits(balance, 18)
 }

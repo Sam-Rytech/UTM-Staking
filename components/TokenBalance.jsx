@@ -3,7 +3,7 @@
 import { useBalance } from '../lib/hooks'
 
 export default function TokenBalance() {
-  const balance = useBalance()
+  const balance = useBalance(process.env.NEXT_PUBLIC_UTM_TOKEN)
 
   return (
     <div className="p-6 bg-slate-800 rounded-2xl shadow-lg">
