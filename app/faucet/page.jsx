@@ -2,41 +2,50 @@
 
 import { useState, useEffect } from 'react'
 import { ethers } from 'ethers'
-import UTMFaucetABI from '../../abi/UTMFaucet.json'
-import UTMABI from '../../abi/UTM.json'
+import UTMFaucetJSON from '../../abi/UTMFaucet.json'
+import UTMJSON from '../../abi/UTM.json'
 
-const FAUCET_ADDRESS = process.env.NEXT_PUBLIC_FAUCET_ADDRESS || ''
-const TOKEN_ADDRESS = process.env.NEXT_PUBLIC_UTM_TOKEN || ''
+const FAUCET_ADDRESS = process.env.NEXT_PUBLIC_FAUCET_ADDRESS
+const TOKEN_ADDRESS = process.env.NEXT_PUBLIC_UTM_TOKEN
 
+// Extract the raw ABI array from JSON
+const UTMFaucetABI = UTMFaucetJSON.abi || UTMFaucetJSON
+const UTMABI = UTMJSON.abi || UTMJSON
 
 export default function FaucetPage() {
-  const [wallet, setWallet] = useState<string | null>(null)
-  const [userBalance, setUserBalance] = useState<string>('0')
-  const [faucetBalance, setFaucetBalance] = useState<string>('0')
+  const [wallet, setWallet] = useState(null)
+  const [userBalance, setUserBalance] = useState('0')
+  const [faucetBalance, setFaucetBalance] = useState('0')
   const [loading, setLoading] = useState(false)
 
+  // Connect wallet
   async function connectWallet() {
     if (!window.ethereum) return alert('MetaMask not found')
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+    const accounts = await window.ethereum.request({
+      method: 'eth_requestAccounts',
+    })
     setWallet(accounts[0])
     fetchBalances(accounts[0])
   }
 
+  // Fetch user token balance + faucet balance
   async function fetchBalances(user) {
     if (!window.ethereum) return
     const provider = new ethers.BrowserProvider(window.ethereum)
+
     const token = new ethers.Contract(TOKEN_ADDRESS, UTMABI, provider)
     const faucet = new ethers.Contract(FAUCET_ADDRESS, UTMFaucetABI, provider)
 
     const [userBal, faucetBal] = await Promise.all([
       token.balanceOf(user),
-      faucet.faucetBalance()
+      faucet.faucetBalance(),
     ])
 
     setUserBalance(ethers.formatUnits(userBal, 18))
     setFaucetBalance(ethers.formatUnits(faucetBal, 18))
   }
 
+  // Claim tokens from faucet
   async function claim() {
     if (!wallet || !window.ethereum) return
     try {
@@ -57,6 +66,11 @@ export default function FaucetPage() {
       setLoading(false)
     }
   }
+
+  // Refresh balances on wallet change
+  useEffect(() => {
+    if (window.ethereum && wallet) fetchBalances(wallet)
+  }, [wallet])
 
   return (
     <div className="max-w-md mx-auto mt-12 p-6 bg-gray-800 rounded-2xl shadow-lg">
