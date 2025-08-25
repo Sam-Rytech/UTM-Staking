@@ -181,24 +181,7 @@ export default function VotingPage() {
     fetchProposals(c)
   }
 
-  // Create proposal
-  const createProposal = async () => {
-    if (!contract) return
-    setLoading(true)
-    try {
-      const tx = await contract.createProposal(description, duration)
-      await tx.wait()
-      alert('Proposal created!')
-      setDescription('')
-      fetchProposals()
-    } catch (err) {
-      console.error(err)
-      alert('Error creating proposal')
-    }
-    setLoading(false)
-  }
-
-  // Fetch all proposals
+  // Fetch proposals
   const fetchProposals = async (c = contract) => {
     if (!c) return
     const proposalsArr = []
@@ -221,30 +204,61 @@ export default function VotingPage() {
     setProposals(proposalsArr)
   }
 
-  // Approve UMT tokens for voting
+  // Create proposal
+  const createProposal = async () => {
+    if (!contract) return
+    setLoading(true)
+    try {
+      const tx = await contract.createProposal(description, duration)
+      await tx.wait()
+      alert('Proposal created!')
+      setDescription('')
+      fetchProposals()
+    } catch (err) {
+      console.error(err)
+      alert('Error creating proposal')
+    }
+    setLoading(false)
+  }
+
+  // Approve UMT tokens
   const approveUMT = async (amount) => {
-    const umtContract = new ethers.Contract(
+    if (!wallet || !contract) return
+    const amountBN = ethers.parseUnits(amount, 18)
+
+    // Read-only contract for allowance check
+    const provider = new ethers.BrowserProvider(window.ethereum)
+    const umtReadContract = new ethers.Contract(
       UMT_TOKEN,
       [
-        'function approve(address spender, uint256 amount) public returns (bool)',
-        'function allowance(address owner, address spender) public view returns (uint256)',
+        'function allowance(address owner, address spender) view returns (uint256)',
       ],
-      contract.signer
+      provider
     )
-    const allowance = await umtContract.allowance(wallet, VOTING_ADDRESS)
-    if (allowance.gte(ethers.parseUnits(amount, 18))) return
-    const tx = await umtContract.approve(
-      VOTING_ADDRESS,
-      ethers.parseUnits(amount, 18)
+
+    const allowanceRaw = await umtReadContract.allowance(wallet, VOTING_ADDRESS)
+    const allowance = ethers.toBigInt(allowanceRaw)
+
+    if (allowance >= amountBN) return // already approved
+
+    // ✅ Use the signer-connected contract for sending tx
+    const signer = await provider.getSigner()
+    const umtWriteContract = new ethers.Contract(
+      UMT_TOKEN,
+      ['function approve(address spender, uint256 amount) returns (bool)'],
+      signer
     )
+
+    const tx = await umtWriteContract.approve(VOTING_ADDRESS, amountBN)
     await tx.wait()
   }
 
-  // Vote
+  // Vote proposal
   const voteProposal = async (id) => {
     if (!contract) return
     const amount = voteAmounts[id]
     if (!amount || isNaN(amount)) return alert('Enter valid vote amount')
+
     try {
       await approveUMT(amount)
       const tx = await contract.vote(id, ethers.parseUnits(amount, 18))
