@@ -164,9 +164,11 @@ export default function VotingPage() {
   const [contract, setContract] = useState(null)
   const [proposals, setProposals] = useState([])
   const [description, setDescription] = useState('')
-  const [duration, setDuration] = useState(60) // default 60s
+  const [duration, setDuration] = useState(60)
   const [loading, setLoading] = useState(false)
+  const [voteAmounts, setVoteAmounts] = useState({})
 
+  // Connect wallet + contract
   const connectWallet = async () => {
     if (!window.ethereum) return alert('MetaMask required')
     const provider = new ethers.BrowserProvider(window.ethereum)
@@ -178,6 +180,7 @@ export default function VotingPage() {
     fetchProposals(c)
   }
 
+  // Create proposal
   const createProposal = async () => {
     if (!contract) return
     setLoading(true)
@@ -185,8 +188,8 @@ export default function VotingPage() {
       const tx = await contract.createProposal(description, duration)
       await tx.wait()
       alert('Proposal created!')
-      fetchProposals(contract)
       setDescription('')
+      fetchProposals()
     } catch (err) {
       console.error(err)
       alert('Error creating proposal')
@@ -194,39 +197,47 @@ export default function VotingPage() {
     setLoading(false)
   }
 
+  // Fetch all proposals
   const fetchProposals = async (c = contract) => {
     if (!c) return
-    try {
-      const proposalsArr = []
-      let i = 0
-      while (true) {
-        try {
-          const p = await c.getProposal(i)
-          proposalsArr.push({ id: i, ...p })
-          i++
-        } catch (err) {
-          break // stop when no more proposals
-        }
+    const proposalsArr = []
+    let i = 0
+    while (true) {
+      try {
+        const p = await c.getProposal(i)
+        proposalsArr.push({
+          id: i,
+          description: p.description,
+          voteCount: p.voteCount.toString(),
+          active: p.active,
+          deadline: p.deadline.toString(),
+        })
+        i++
+      } catch {
+        break
       }
-      setProposals(proposalsArr)
-    } catch (err) {
-      console.error(err)
     }
+    setProposals(proposalsArr)
   }
 
-  const voteProposal = async (id, amount) => {
+  // Vote
+  const voteProposal = async (id) => {
     if (!contract) return
+    const amount = voteAmounts[id]
+    if (!amount || isNaN(amount)) return alert('Enter valid vote amount')
     try {
       const tx = await contract.vote(id, ethers.parseUnits(amount, 18))
       await tx.wait()
       alert('Voted!')
       fetchProposals()
+      setVoteAmounts({ ...voteAmounts, [id]: '' })
     } catch (err) {
       console.error(err)
       alert('Vote failed')
     }
   }
 
+  // Close proposal
   const closeProposal = async (id) => {
     if (!contract) return
     try {
@@ -292,21 +303,22 @@ export default function VotingPage() {
                 <p>Status: {p.active ? 'Active' : 'Closed'}</p>
 
                 {p.active && (
-                  <>
+                  <div className="mt-2 flex items-center gap-2">
                     <input
                       type="number"
                       placeholder="Vote amount"
-                      className="text-black p-1 rounded w-24 mr-2"
-                      id={`vote-${p.id}`}
+                      className="text-black p-1 rounded w-24"
+                      value={voteAmounts[p.id] || ''}
+                      onChange={(e) =>
+                        setVoteAmounts({
+                          ...voteAmounts,
+                          [p.id]: e.target.value,
+                        })
+                      }
                     />
                     <button
-                      onClick={() => {
-                        const amount = document.getElementById(
-                          `vote-${p.id}`
-                        ).value
-                        voteProposal(p.id, amount)
-                      }}
-                      className="px-2 py-1 bg-blue-500 rounded mr-2"
+                      onClick={() => voteProposal(p.id)}
+                      className="px-2 py-1 bg-blue-500 rounded"
                     >
                       Vote
                     </button>
@@ -316,7 +328,7 @@ export default function VotingPage() {
                     >
                       Close
                     </button>
-                  </>
+                  </div>
                 )}
               </div>
             ))}
