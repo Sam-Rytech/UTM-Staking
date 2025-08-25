@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { ethers } from 'ethers'
-import UTMFaucetJSON from '../../abi/UTMFaucet.json'
+import UTMFaucetJSON from '../../../UTM Staking/abi/UTMFaucet.json'
 import UTMJSON from '../../abi/UTM.json'
 
 const FAUCET_ADDRESS = process.env.NEXT_PUBLIC_FAUCET_ADDRESS
