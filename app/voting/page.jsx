@@ -5,6 +5,7 @@ import { ethers } from 'ethers'
 
 
 const VOTING_ADDRESS = process.env.NEXT_PUBLIC_UMT_VOTING
+const UMT_TOKEN = process.env.NEXT_PUBLIC_UTM_TOKEN
 
 
 const VotingABI = [
@@ -220,12 +221,32 @@ export default function VotingPage() {
     setProposals(proposalsArr)
   }
 
+  // Approve UMT tokens for voting
+  const approveUMT = async (amount) => {
+    const umtContract = new ethers.Contract(
+      UMT_TOKEN,
+      [
+        'function approve(address spender, uint256 amount) public returns (bool)',
+        'function allowance(address owner, address spender) public view returns (uint256)',
+      ],
+      contract.signer
+    )
+    const allowance = await umtContract.allowance(wallet, VOTING_ADDRESS)
+    if (allowance.gte(ethers.parseUnits(amount, 18))) return
+    const tx = await umtContract.approve(
+      VOTING_ADDRESS,
+      ethers.parseUnits(amount, 18)
+    )
+    await tx.wait()
+  }
+
   // Vote
   const voteProposal = async (id) => {
     if (!contract) return
     const amount = voteAmounts[id]
     if (!amount || isNaN(amount)) return alert('Enter valid vote amount')
     try {
+      await approveUMT(amount)
       const tx = await contract.vote(id, ethers.parseUnits(amount, 18))
       await tx.wait()
       alert('Voted!')
