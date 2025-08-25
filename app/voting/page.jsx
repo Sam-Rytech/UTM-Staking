@@ -164,53 +164,20 @@ export default function VotingPage() {
   const [contract, setContract] = useState(null)
   const [proposals, setProposals] = useState([])
   const [description, setDescription] = useState('')
-  const [duration, setDuration] = useState(60)
+  const [duration, setDuration] = useState(60) // default 60s
   const [loading, setLoading] = useState(false)
 
-  // Connect wallet + contract
   const connectWallet = async () => {
     if (!window.ethereum) return alert('MetaMask required')
     const provider = new ethers.BrowserProvider(window.ethereum)
     const accounts = await provider.send('eth_requestAccounts', [])
     const signer = await provider.getSigner()
     setWallet(accounts[0])
-
     const c = new ethers.Contract(VOTING_ADDRESS, VotingABI, signer)
     setContract(c)
-    console.log('✅ Connected:', c.target)
-
     fetchProposals(c)
   }
 
-  // Fetch all proposals
-  const fetchProposals = async (c = contract) => {
-    if (!c) return
-    try {
-      const props = []
-      // assuming your contract has a public array `proposals` you can loop until it fails
-      let i = 0
-      while (true) {
-        try {
-          const p = await c.proposals(i)
-          props.push({
-            id: i,
-            description: p.description,
-            voteCount: p.voteCount.toString(),
-            active: p.active,
-            deadline: p.deadline.toString(),
-          })
-          i++
-        } catch (err) {
-          break // stop once we go past the array length
-        }
-      }
-      setProposals(props)
-    } catch (err) {
-      console.error('Error fetching proposals:', err)
-    }
-  }
-
-  // Create proposal
   const createProposal = async () => {
     if (!contract) return
     setLoading(true)
@@ -218,8 +185,8 @@ export default function VotingPage() {
       const tx = await contract.createProposal(description, duration)
       await tx.wait()
       alert('Proposal created!')
+      fetchProposals(contract)
       setDescription('')
-      fetchProposals()
     } catch (err) {
       console.error(err)
       alert('Error creating proposal')
@@ -227,23 +194,50 @@ export default function VotingPage() {
     setLoading(false)
   }
 
-  // Vote for a proposal
+  const fetchProposals = async (c = contract) => {
+    if (!c) return
+    try {
+      const proposalsArr = []
+      let i = 0
+      while (true) {
+        try {
+          const p = await c.getProposal(i)
+          proposalsArr.push({ id: i, ...p })
+          i++
+        } catch (err) {
+          break // stop when no more proposals
+        }
+      }
+      setProposals(proposalsArr)
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   const voteProposal = async (id, amount) => {
     if (!contract) return
-    setLoading(true)
     try {
-      const tx = await contract.vote(
-        id,
-        ethers.parseUnits(amount.toString(), 18)
-      )
+      const tx = await contract.vote(id, ethers.parseUnits(amount, 18))
       await tx.wait()
-      alert('Vote cast!')
+      alert('Voted!')
       fetchProposals()
     } catch (err) {
       console.error(err)
-      alert('Voting failed')
+      alert('Vote failed')
     }
-    setLoading(false)
+  }
+
+  const closeProposal = async (id) => {
+    if (!contract) return
+    try {
+      const tx = await contract.closeProposal(id)
+      await tx.wait()
+      alert('Proposal closed')
+      fetchProposals()
+    } catch (err) {
+      console.error(err)
+      alert('Failed to close proposal')
+    }
   }
 
   return (
@@ -261,66 +255,74 @@ export default function VotingPage() {
         <p className="mb-4">Connected: {wallet}</p>
       )}
 
-      <div className="mb-6">
-        <h2 className="font-semibold">Create Proposal</h2>
-        <input
-          type="text"
-          placeholder="Proposal description"
-          className="text-black p-2 rounded w-full my-2"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-        <input
-          type="number"
-          placeholder="Duration (seconds)"
-          className="text-black p-2 rounded w-full my-2"
-          value={duration}
-          onChange={(e) => setDuration(e.target.value)}
-        />
-        <button
-          disabled={loading}
-          onClick={createProposal}
-          className="px-4 py-2 bg-green-600 rounded"
-        >
-          {loading ? 'Submitting...' : 'Create'}
-        </button>
-      </div>
-
-      <div className="space-y-4 mt-6">
-        <h2 className="font-semibold text-lg">Proposals</h2>
-        {proposals.length === 0 ? (
-          <p>No proposals found</p>
-        ) : (
-          proposals.map((p) => (
-            <div
-              key={p.id}
-              className="p-4 bg-gray-900 rounded-lg border border-gray-700"
+      {wallet && (
+        <>
+          <div className="mb-6">
+            <h2 className="font-semibold">Create Proposal</h2>
+            <input
+              type="text"
+              placeholder="Proposal description"
+              className="text-black p-2 rounded w-full my-2"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+            <input
+              type="number"
+              placeholder="Duration (seconds)"
+              className="text-black p-2 rounded w-full my-2"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+            />
+            <button
+              disabled={loading}
+              onClick={createProposal}
+              className="px-4 py-2 bg-green-600 rounded"
             >
-              <h3 className="font-semibold">{p.description}</h3>
-              <p>Votes: {p.voteCount}</p>
-              <p>Status: {p.active ? 'Active' : 'Closed'}</p>
-              {p.active && (
-                <div className="mt-2 flex gap-2">
-                  <button
-                    onClick={() => voteProposal(p.id, 1)} // voting 1 UMT for example
-                    className="px-3 py-1 bg-green-600 rounded hover:bg-green-700 disabled:opacity-50"
-                    disabled={loading}
-                  >
-                    Vote For (1 UMT)
-                  </button>
-                  <button
-                    onClick={() => voteProposal(p.id, 0)} // voting 0 = against? depends on your contract
-                    className="px-3 py-1 bg-red-600 rounded hover:bg-red-700 disabled:opacity-50"
-                    disabled={loading}
-                  >
-                    Vote Against
-                  </button>
-                </div>
-              )}
-            </div>
-          ))
-        )}
-      </div>
+              {loading ? 'Submitting...' : 'Create'}
+            </button>
+          </div>
+
+          <div className="mb-6">
+            <h2 className="font-semibold">Proposals</h2>
+            {proposals.length === 0 && <p>No proposals yet</p>}
+            {proposals.map((p) => (
+              <div key={p.id} className="bg-gray-700 p-4 rounded mb-2">
+                <p className="font-semibold">{p.description}</p>
+                <p>Votes: {ethers.formatUnits(p.voteCount, 18)}</p>
+                <p>Status: {p.active ? 'Active' : 'Closed'}</p>
+
+                {p.active && (
+                  <>
+                    <input
+                      type="number"
+                      placeholder="Vote amount"
+                      className="text-black p-1 rounded w-24 mr-2"
+                      id={`vote-${p.id}`}
+                    />
+                    <button
+                      onClick={() => {
+                        const amount = document.getElementById(
+                          `vote-${p.id}`
+                        ).value
+                        voteProposal(p.id, amount)
+                      }}
+                      className="px-2 py-1 bg-blue-500 rounded mr-2"
+                    >
+                      Vote
+                    </button>
+                    <button
+                      onClick={() => closeProposal(p.id)}
+                      className="px-2 py-1 bg-red-600 rounded"
+                    >
+                      Close
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
