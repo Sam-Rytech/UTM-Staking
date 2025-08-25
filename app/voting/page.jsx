@@ -1,158 +1,239 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ethers } from 'ethers'
-import VotingABI from '../../abi/UTMVoting.json'
+
+
+const VOTING_ADDRESS = process.env.NEXT_PUBLIC_UMT_VOTING
+
+
+const VotingABI = [
+  {
+    inputs: [{ internalType: 'address', name: '_umt', type: 'address' }],
+    stateMutability: 'nonpayable',
+    type: 'constructor',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: 'uint256',
+        name: 'proposalId',
+        type: 'uint256',
+      },
+      {
+        indexed: false,
+        internalType: 'uint256',
+        name: 'finalVotes',
+        type: 'uint256',
+      },
+    ],
+    name: 'ProposalClosed',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: 'uint256',
+        name: 'proposalId',
+        type: 'uint256',
+      },
+      {
+        indexed: false,
+        internalType: 'string',
+        name: 'description',
+        type: 'string',
+      },
+      {
+        indexed: false,
+        internalType: 'uint256',
+        name: 'deadline',
+        type: 'uint256',
+      },
+    ],
+    name: 'ProposalCreated',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: 'uint256',
+        name: 'proposalId',
+        type: 'uint256',
+      },
+      {
+        indexed: false,
+        internalType: 'address',
+        name: 'voter',
+        type: 'address',
+      },
+      {
+        indexed: false,
+        internalType: 'uint256',
+        name: 'amount',
+        type: 'uint256',
+      },
+    ],
+    name: 'Voted',
+    type: 'event',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: 'proposalId', type: 'uint256' }],
+    name: 'closeProposal',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'string', name: '_description', type: 'string' },
+      { internalType: 'uint256', name: 'duration', type: 'uint256' },
+    ],
+    name: 'createProposal',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: 'proposalId', type: 'uint256' }],
+    name: 'getProposal',
+    outputs: [
+      { internalType: 'string', name: 'description', type: 'string' },
+      { internalType: 'uint256', name: 'voteCount', type: 'uint256' },
+      { internalType: 'bool', name: 'active', type: 'bool' },
+      { internalType: 'uint256', name: 'deadline', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: '', type: 'address' }],
+    name: 'hasVoted',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    name: 'proposals',
+    outputs: [
+      { internalType: 'string', name: 'description', type: 'string' },
+      { internalType: 'uint256', name: 'voteCount', type: 'uint256' },
+      { internalType: 'bool', name: 'active', type: 'bool' },
+      { internalType: 'uint256', name: 'deadline', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'umt',
+    outputs: [{ internalType: 'contract IERC20', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'uint256', name: 'proposalId', type: 'uint256' },
+      { internalType: 'uint256', name: 'amount', type: 'uint256' },
+    ],
+    name: 'vote',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'uint256', name: '', type: 'uint256' },
+      { internalType: 'address', name: '', type: 'address' },
+    ],
+    name: 'votes',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+]
 
 export default function VotingPage() {
-  const [provider, setProvider] = useState(null)
-  const [signer, setSigner] = useState(null)
-  const [account, setAccount] = useState(null)
-  const [votingContract, setVotingContract] = useState(null)
+  const [wallet, setWallet] = useState(null)
+  const [contract, setContract] = useState(null)
   const [proposals, setProposals] = useState([])
-  const [newProposal, setNewProposal] = useState('')
+  const [description, setDescription] = useState('')
+  const [duration, setDuration] = useState(60) // default 60s
+  const [loading, setLoading] = useState(false)
 
-  // Load contract addresses from env
-  const VOTING_ADDRESS = process.env.NEXT_PUBLIC_UMT_VOTING
-
-  useEffect(() => {
-    console.log('Loaded Voting Address:', VOTING_ADDRESS)
-
-    if (!VOTING_ADDRESS) {
-      console.error('❌ Voting contract address not found. Check .env.local')
-    }
-  }, [VOTING_ADDRESS])
-
-  // Connect wallet
+  // Connect wallet + contract
   const connectWallet = async () => {
-    if (!window.ethereum) {
-      alert('MetaMask not detected!')
-      return
-    }
+    if (!window.ethereum) return alert('MetaMask required')
+    const provider = new ethers.BrowserProvider(window.ethereum)
+    const accounts = await provider.send('eth_requestAccounts', [])
+    const signer = await provider.getSigner()
+    setWallet(accounts[0])
 
-    const prov = new ethers.BrowserProvider(window.ethereum)
-    await prov.send('eth_requestAccounts', [])
-    const signer = await prov.getSigner()
-    const addr = await signer.getAddress()
-
-    setProvider(prov)
-    setSigner(signer)
-    setAccount(addr)
-
-    // Init contract
-    if (VOTING_ADDRESS) {
-      const contract = new ethers.Contract(VOTING_ADDRESS, VotingABI, signer)
-      setVotingContract(contract)
-      console.log('✅ Voting contract loaded:', contract.target)
-      fetchProposals(contract)
-    } else {
-      console.error('❌ VOTING_ADDRESS is null. Check your env file.')
-    }
-  }
-
-  // Fetch proposals
-  const fetchProposals = async (contract) => {
-    try {
-      const count = await contract.proposalCount()
-      const all = []
-      for (let i = 1; i <= count; i++) {
-        const p = await contract.proposals(i)
-        all.push({
-          id: i,
-          description: p.description,
-          votes: Number(p.voteCount),
-        })
-      }
-      setProposals(all)
-    } catch (err) {
-      console.error('Failed to fetch proposals:', err)
-    }
+    const c = new ethers.Contract(VOTING_ADDRESS, VotingABI, signer)
+    setContract(c)
+    console.log('✅ Connected:', c.target)
   }
 
   // Create proposal
   const createProposal = async () => {
-    if (!votingContract || !newProposal) return
+    if (!contract) return
+    setLoading(true)
     try {
-      const tx = await votingContract.createProposal(newProposal)
+      const tx = await contract.createProposal(description, duration)
       await tx.wait()
-      alert('✅ Proposal created!')
-      setNewProposal('')
-      fetchProposals(votingContract)
+      alert('Proposal created!')
     } catch (err) {
-      console.error('Create proposal error:', err)
+      console.error(err)
+      alert('Error creating proposal')
     }
-  }
-
-  // Vote
-  const vote = async (id) => {
-    if (!votingContract) return
-    try {
-      const tx = await votingContract.vote(id)
-      await tx.wait()
-      alert('✅ Voted successfully!')
-      fetchProposals(votingContract)
-    } catch (err) {
-      console.error('Vote error:', err)
-    }
+    setLoading(false)
   }
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">UMT Voting Dapp</h1>
+    <div className="p-6 bg-slate-800 rounded-xl shadow-lg">
+      <h1 className="text-xl font-bold mb-4">UMT Voting Dapp</h1>
 
-      {!account ? (
+      {!wallet ? (
         <button
           onClick={connectWallet}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+          className="px-4 py-2 bg-blue-600 rounded"
         >
           Connect Wallet
         </button>
       ) : (
-        <p className="mb-4">Connected: {account}</p>
+        <p className="mb-4">Connected: {wallet}</p>
       )}
 
-      {/* Create Proposal */}
-      <div className="my-6">
+      <div className="mb-6">
+        <h2 className="font-semibold">Create Proposal</h2>
         <input
           type="text"
-          value={newProposal}
-          onChange={(e) => setNewProposal(e.target.value)}
-          placeholder="Enter proposal description"
-          className="border px-3 py-2 rounded w-full mb-2"
+          placeholder="Proposal description"
+          className="text-black p-2 rounded w-full my-2"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+        <input
+          type="number"
+          placeholder="Duration (seconds)"
+          className="text-black p-2 rounded w-full my-2"
+          value={duration}
+          onChange={(e) => setDuration(e.target.value)}
         />
         <button
+          disabled={loading}
           onClick={createProposal}
-          className="px-4 py-2 bg-green-600 text-white rounded-lg"
+          className="px-4 py-2 bg-green-600 rounded"
         >
-          Create Proposal
+          {loading ? 'Submitting...' : 'Create'}
         </button>
       </div>
-
-      {/* Proposal List */}
-      <h2 className="text-xl font-semibold mb-2">Proposals</h2>
-      {proposals.length === 0 ? (
-        <p>No proposals yet</p>
-      ) : (
-        <ul className="space-y-3">
-          {proposals.map((p) => (
-            <li
-              key={p.id}
-              className="border p-3 rounded flex justify-between items-center"
-            >
-              <div>
-                <p className="font-medium">{p.description}</p>
-                <p className="text-sm text-gray-600">Votes: {p.votes}</p>
-              </div>
-              <button
-                onClick={() => vote(p.id)}
-                className="px-3 py-1 bg-purple-600 text-white rounded-lg"
-              >
-                Vote
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   )
 }
